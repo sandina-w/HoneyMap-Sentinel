@@ -79,7 +79,7 @@ With the honeypot VM logging every packet, it’s time to centralize those logs 
    
    ![Create Data Collection Rule](https://github.com/sandina-w/HoneyMap-Sentinel/blob/4e15a3c4a9ce04c613532240daf3c3bdce936526/screenshots/Screenshot%202025-06-21%20171055.png)
 
-## Part 7: Querying Failed-Login Events
+## Part 6: Querying Failed-Login Events
 
 With logs flowing in, I ran this KQL query to pull all Event ID 4625 (failed logins):
 
@@ -92,13 +92,14 @@ SecurityEvent
 
 You can already see a few failed-login attempts when we first ran the query, After leaving the honeypot exposed for a few hours, the volume of attack traffic spiked dramatically.
 
-## Part 8: Geo-IP Enrichment with a Sentinel Watchlist
+## Part 7: Geo-IP Enrichment with a Sentinel Watchlist
 
 To give every failed-login event a location, I imported a public GeoIP CSV into Sentinel as a Watchlist:
 
 1. On the **General** tab, I set:  
    - **Name:** `geoip`  
-   - **Alias:** `geoip`  
+   - **Alias:** `geoip`
+   
    ![Watchlist Wizard – General](https://github.com/sandina-w/HoneyMap-Sentinel/blob/624d4d8cee7960f84de6da957fff5205098f578b/screenshots/Screenshot%202025-06-22%20011544.png)
 
 2. On the **Source** tab, I chose:  
@@ -106,11 +107,63 @@ To give every failed-login event a location, I imported a public GeoIP CSV into 
    - **File type:** CSV with header  
    - **Lines before header:** 0  
    - **Upload:** `geoip-summarized.csv`  
-   - **Search key:** `network`  
+   - **Search key:** `network`
+     
    ![Watchlist Wizard – Source](https://github.com/sandina-w/HoneyMap-Sentinel/blob/624d4d8cee7960f84de6da957fff5205098f578b/screenshots/Screenshot%202025-06-22%20011954.png)
 
-3. I clicked **Review + create** → **Create**, and after it finished there were about **92 000** entries in my `geoip` watchlist—ready for KQL joins.  
+3. I clicked **Review + create** → **Create**, and after it finished there were about **92 000** entries in my `geoip` watchlist—ready for KQL joins.
+4. 
    ![Watchlist imported with 92K entries](https://github.com/sandina-w/HoneyMap-Sentinel/blob/624d4d8cee7960f84de6da957fff5205098f578b/screenshots/Screenshot%202025-06-22%20014239.png)
+
+## Part 8: Building the Attack-Map Workbook
+
+To bring everything together, I created a Sentinel workbook that plots failed-login attempts on a world map:
+
+1. In Azure Sentinel, I navigated to **Workbooks** → **+ New workbook**.  
+2. I deleted the default panels and added a **Query** element.  
+3. In the **Advanced Editor**, I pasted my JSON definition, which:
+   - Loads the `geoip` watchlist  
+   - Queries `SecurityEvent` for EventID 4625  
+   - Joins on the `network` field to enrich each IP with latitude/longitude  
+   - Summarizes by country and aggregates failure counts  
+   - Renders a `map` visualization with bubble sizes proportional to the number of failed logins  
+
+Below shows the JSON in the Advanced Editor:
+
+![Workbook JSON in Advanced Editor](https://github.com/sandina-w/HoneyMap-Sentinel/blob/58e51381ecff15f53d3063346788cc749f641b6f/screenshots/Screenshot%202025-06-22%20014610.png)
+
+After saving and exiting edit mode, the map comes to life, each bubble shows where attacks are coming from, sized by volume:
+
+![Attack Map Workbook](https://github.com/sandina-w/HoneyMap-Sentinel/blob/58e51381ecff15f53d3063346788cc749f641b6f/screenshots/Screenshot%202025-06-22%20134745.png)
+
+Below the map is a summary row that lists the top regions:
+
+| Location                        | Failures |
+|---------------------------------|---------:|
+| Ranchos (Argentina)             | 66.9 K   |
+| Tilburg (Netherlands)           | 33.4 K   |
+| Jordanow (Poland)               | 33.4 K   |
+| Vadodara (India)                | 1.67 K   |
+| Paulista (Brazil)               | 1.65 K   |
+| Crateus (Brazil)                | 1.65 K   |
+| Other                           | 160      |
+| Los Angeles (United States)     | 144      |
+| Polokwane (South Africa)        | 144      |
+
+---
+
+Finally, I re-ran the same KQL in Log Analytics to validate the volume over a longer window. You can see the total failed-login count surged to **68,759** entries:  
+
+![Final failed-login results (1–13 of 68,759)](https://github.com/sandina-w/HoneyMap-Sentinel/blob/58e51381ecff15f53d3063346788cc749f641b6f/screenshots/Screenshot%202025-06-22%20134550.png)
+
+## Conclusion
+
+This lab gave me hands-on experience with the full Azure SIEM workflow: deploying a decoy VM, opening it to real-world scanners, centralizing logs in Log Analytics, enriching with GeoIP data via a Sentinel watchlist, and visualizing attacker activity on an interactive map. In a few hours it attracted over **68,759** failed-login attempts from around the globe, demonstrating how quickly exposed assets are probed and why end-to-end monitoring is critical.
+
+##  References
+
+- Lab walkthrough video: https://www.youtube.com/watch?v=g5JL2RIbThM&t=2322s
+- Detailed lab notes: https://docs.google.com/document/d/143seB9PwT9GSsStc14vPQWgnCHQeVMVEC6XBRz67p_Q/edit?tab=t.0
 
 
 
